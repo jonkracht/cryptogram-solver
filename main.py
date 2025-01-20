@@ -1,129 +1,142 @@
 import sys
 import re
 import string
-
+import copy
 infile = sys.argv[1] if len(sys.argv)>=2 else './input/1.in'
 
 text, clues = open(infile).read().strip().split("\n\n")
+
 sentences = re.split(r'[.?!]+', text)  # separate text into sentences
-
 sentences = sentences[:-1]  # strip off empty entry
-
-# Load dictionary - make lower case
-word_list = []
-for w in open("american-english").read().strip().split("\n"):
-    word_list.append(w.lower())
-
-
-
-def apply_map(puzzle, blank, mapping):
-    """"""
-
-    for key, val in mapping.items():
-        for i, sentence in enumerate(puzzle):
-            for ii, word in enumerate(sentence):
-                for iii, letter in enumerate(word):
-                    if letter in mapping.keys():
-                        blank[i][ii][iii] = mapping[letter]
-
-    return blank
-
-
-unique_chars = set()
-
-# Construct puzzle and solution structures
-puzzle, solution = [], []
-
+# Create nested list representation of the cryptogram
+crypto, unique_chars = [], set()
 for s in sentences:
-    q, b = [], []
-    words = s.split()
-    for w in words:
-        qq, bb = [], [] 
-        chars = list(w)
-        for c in chars:
-            unique_chars.add(c.lower())
-            qq.append(c.lower())
-            bb.append("")
+    temp = []
+    for word in s.split():
+        temp2 = []
+        for char in list(word):
+            temp2.append(char.lower())
+            unique_chars.add(char.lower())
+        temp.append(temp2)
+    crypto.append(temp)
 
-        q.append(qq)
-        b.append(bb)
-
-    puzzle.append(q)
-    solution.append(b)
-
-print(f"\nPuzzle:\n{puzzle}")
+print(f"\nCryptogram:  {crypto}")
+print(f"\nUnique characters:  {unique_chars}")
 
 
-letter_map = {}
-for u in unique_chars:
-    letter_map[u] = ""
+clues = clues.split(":  ")[1]
+clues = clues.split(",")[:-1]
 
-clues = str(clues.split(":  ")[1]).split(',')[:-1]
-
+clue_dict = {}
 for c in clues:
     key, val = c.split(":")
-    letter_map[key.lower()] = val.lower()
+    clue_dict[key.lower()] = val.lower()
 
-print(f"\nClues given:  {clues}")
-
-print(f"\nUnique characters in puzzle:\n{unique_chars}")
-print(f"\nCurrent letter map:  {letter_map}")
-
-filled = apply_map(puzzle, solution, letter_map)
-print(f"\nMap applied to blank puzzle:\n{filled}")
+print(f"\nDictionary of clues:  {clue_dict}")
 
 
+# Construct letter map dictionary
+char_map = {}
+for u in unique_chars:
+    char_map[u] = ""
 
-def is_full(puzzle):
-    """Checks is all blanks are populated"""
 
-    full = True
-    for sentence in puzzle:
+remaining_letters = list(string.ascii_lowercase)
+
+# Insert clue into map
+for key, val in clue_dict.items():
+    remaining_letters.remove(key)
+    char_map[key] = val
+
+print(f"\nCharacter map: {char_map}")
+print(f"\nRemaining characters: {remaining_letters}")
+
+# Load list of words
+dictionary = []
+for w in open("word-list-2").read().strip().split("\n"):
+    dictionary.append(w.lower())
+
+#print(word_list)
+#print('trot' in word_list)
+#input()
+
+seen_words = set()
+
+def next_key(char_map):
+    """Determine next empty spot in character map"""
+
+    for key, val in char_map.items():
+        if val == "":
+            return key
+
+    return -1
+
+
+def is_valid(char_map, k, v):
+    """"""
+
+    new_map = copy.deepcopy(char_map)
+    new_map[k] = v
+
+    for sentence in crypto:
         for word in sentence:
-            if "" in word:
-                return False
+            word_list, filled = [], True
+
+            for letter in word:
+                new_char = new_map[letter]
+
+                if new_char == "":
+                    filled = False
+                
+                word_list.append(new_map[letter])
+
+            if filled:
+                w = ''.join(word_list) 
+                if w in seen_words:
+                    #print(f"Word found:  {w}")
+                    pass
+                elif w in dictionary:
+                    seen_words.add(w)
+                    pass
+                else:
+                    #print(f"Word not in dictionary:  {w}")
+                    return False
 
     return True
 
-def all_words(puzzle, word_list):
-    """Checks if all fully populated 'words' are in dictionary"""
-
-    for sentence in puzzle:
-        for word in sentence:
-            if "".join(word) not in word_list:
-                return False
-
-    return True
 
 
-while not (all_words(solution, word_list) and is_full(solution)):
+def solve(char_map):
 
-    # Based on current mapping, find available letters
-    used_letters = []
-    for l in list(letter_map.values()):
-        if l != "":
-            used_letters.append(l)
+    ct = 0
+    for k, v in char_map.items():
+        if v != "":
+            ct += 1
 
-    print(f"\nUsed letters:  {used_letters}")
+    print(f"{ct} populated entries in the map")
+    print(char_map)
 
-    remaining_letters = []
-    for l in list(string.ascii_lowercase):
-        if l not in used_letters:
-            remaining_letters.append(l)
+    nextKey = next_key(char_map)
 
-    print(f"\nRemaining letters: {remaining_letters}")
+    if nextKey == -1:
+        solution = char_map
+        print(solution)
+        return True
+
+    for l in string.ascii_lowercase:
+        if l not in char_map.values():
+
+            if is_valid(char_map, nextKey, l):
+                char_map[nextKey] = l
+
+                if solve(char_map) == False:
+                    char_map[nextKey] = ""
+                else:
+                    return True
+
+    return False
 
 
-    # Find next letter map to try:
-    for key, val in letter_map.items():
-        if val == '':
-            letter_map[key] = remaining_letters[0]
-            break
-    print(f"\nUpdated map:  {letter_map}")
-
-    solution = apply_map(puzzle, solution, letter_map)
-
-    print(f"\nNew map applied:  {solution}")
+solve(char_map)
 
 
-print(solution)
